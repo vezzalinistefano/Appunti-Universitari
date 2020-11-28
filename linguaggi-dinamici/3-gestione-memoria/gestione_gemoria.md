@@ -19,8 +19,10 @@
       - [Dimostrazione (non richiesta vedere notebook)](#dimostrazione-non-richiesta-vedere-notebook)
       - [Efficienza algoritmo](#efficienza-algoritmo)
     - [Reference counting](#reference-counting-1)
+      - [Inizializzazione del RC](#inizializzazione-del-rc)
+      - [Operazioni che modificano il RC](#operazioni-che-modificano-il-rc)
       - [Vantaggi e svantaggi](#vantaggi-e-svantaggi)
-    - [_Gestione della memoria dell'interprete Cython_](#gestione-della-memoria-dellinterprete-cython)
+    - [_Gestione della memoria dell'interprete CPython_](#gestione-della-memoria-dellinterprete-cpython)
       - [Arena, pool e blocchi](#arena-pool-e-blocchi)
         - [Vantaggi e svantaggi](#vantaggi-e-svantaggi-1)
     - [_Garbage Collection CPython_](#garbage-collection-cpython)
@@ -247,79 +249,122 @@ Finché ci sono nodi nel Grey set:
 - Più efficiente del mark and sweep
 - L'esecuzione può essere "interallacciata" con la computazione
   dell'interprete
-  - Prima colo
+  - Prima colorazione avviene quando un oggetto viene _creato_(e la memoria viene allocata)
+  - l'interprete è libero di accedere qualsiasi parte del grafo
+    -  I mutator possono allocare nuovi nodi mentre il GC determina quelli raggiungibili
+ - L'interprete deve fermarsi solo durante la fase di deallocazione di memoria, ovvero dei nodi bianchi (_la terza_)
+   - Il gc potrebbe disallocarlo subito prima del cambio colore
 
 ### Reference counting
 
-- Usato da python
+- **Usato da Python**
 - Ad ogni oggetto viene associata una variabile _contatore dei riferimenti(RC)_
-- Nel grafo questa variabile conta il numero di archi entranti nel
-  nodo/oggetto
+- Nel grafo questa variabile _conta il numero di archi entranti nel
+  nodo/oggetto_
   - Questa proprietà è la condizione invariante che l'algoritmo deve
     soddisfare
-    - quando il RC di un nodo X arriva al valore 0 siamo certi che non ci sono più oggetti nello heap o nel root set che puntano ad X
+    - Quando il RC di un nodo X arriva al valore 0 siamo certi che non ci sono più oggetti nello heap o nel root set che puntano ad X
       - Quindi X può essere disallocato
+
+#### Inizializzazione del RC
+
+- Effettuata dal mutator quando l'oggetto viene creato
+  - E il suo indirizzo assegnato ad una variabile nel root set o inserito in un altro oggetto
+
+#### Operazioni che modificano il RC
+
+- RC può essere cambiato
+  - Mediante _assegnamento_
+    - un riferimento all'oggetto appare come parte destra di un assegnamento
+  - se viene passato come _parametro ad una funzione_
+    -  perché l'oggetto viene legato al parametro formale
+  - se viene _inserito in un contenitore_ 
+    - ad esempio una lista 
 
 #### Vantaggi e svantaggi
 
-- Non dobbiamo attendere l'esecuzione periodica di un algoritmo
+- Non dobbiamo attendere l'esecuzione periodica (o a soglia) di un algoritmo
 - Memoria liberabile nel momento in cui RC arriva a 0
 - Importante proteggere l'accesso all'RC degli oggetti
   - Diversi thread potrebbero voler accedere contemporaneamente ad uno stesso RC
     - _Race condition_
-    - Può portare a situazioni di errore
+    - Può portare a situazioni di errore 
+      - _memory leak, dandling reference_
+- Possibile esistenza di _riferimenti circolari_
+  - impedisce la corretta de-allocazione di oggetti con rischi di _memory leak_
 
-### _Gestione della memoria dell'interprete Cython_
+<img src="images/RC_cycle.jpg" title="Memory leak da riferimenti circolari" width="500">
+
+### _Gestione della memoria dell'interprete CPython_
+
+- Analizziamo come viene organizzata e gestita la memoria a disposizione di un programma
+  - Questa dipende dall'___interprete___
+    - Ovvero dall'_implementazione_ di Python
+    - __CPython__ è quella più diffusa
 
 #### Arena, pool e blocchi
+
+<img src="images/arena_pool_block.jpg">
 
 - Gerarchia di memoria gestita su tre livelli
   - Arene
   - Pool
   - Blocchi
 - Arene
-  - porzioni da 256KB di memoria
+  - Al livello più alto della gerarchia
+  - porzioni da **256KB** di memoria
   - Tutte le arene sono collegate tra loro mediante una lista
     bidirezionale (doubly-linked-list)
-- Ogni arena è suddivisa in 64 pool ciascuna di dimensione fissa pari a 4KB
-- Ogni pool è suddiviso in blocchi la cui dimensione è fissata all'interno
-  di ogni pool ma che può essere differente da pool a pool
-  - I blocchi possono essere da un minimo di 8 byte fino a un massimo di
-    512 bytes
+- Ogni arena è suddivisa in _64 pool_ ciascuna di dimensione fissa pari a _4KB_
+- Ogni pool è suddiviso in blocchi la cui dimensione è fissata all'interno di ogni pool ma che può essere differente da pool a pool
+  - I blocchi possono essere da un _minimo di 8 byte_ fino a un _massimo di 512 bytes_
+  - Se vengono richiesti k byte (con k <= 512)
+    - L'allocazione si traduce in $b_k=\left\lfloor\frac{k-1}{8}\right\rfloor+1$ byte
   - Un pool può essere in tre stati
-    - in uso
+    - _**in uso**_
+      - Blocchi allocati ma anche blocchi liberi
       - questi sono organizzati in una struttura a due livelli
         - una lista semplice
           - per i free pools
         - una lista doppia di pool in uso
-          - mentre l'inserimento può sempre avvenire in testa, l'eliminazione può avvenire in qualsiasi posizione
-    - completo
+          - mentre l'inserimento può sempre avvenire in testa, l'eliminazione può avvenire in qualsiasi posizione e la lista doppia consente di farlo in tempo costante
+    - _**completo**_
       - non necessitano di esssere tenuti in nessuna struttura particolare
-    - vuoto
+    - _**vuoto**_
       - vuoti e completi vengono tenuti in una lista lineare
         (unidirezionale)
   - Un pool è una struct C che mantengono puntatori a pool precedente e successivo
+  - La classe di un pool viene determinata in base alla "prima" richiesta di allocazione
+
+<img src="images/pool_states.jpg" width="500" align="center">
+
+- I blocchi sono di 3 tipi
+  - Occupati(verde)
+  - Mai allocati(celeste)
+  - Liberi(verdino)
+    - Ovvero che erano stati occupati in precedenza ma ora sono liberi
+  - Situazione ideale
+    - Verdi sotto/Celesti sopra
+
+---
 - Quando viene fatta una richiesta di memoria di una certa classe
-  - Si va  a vedere se ci sono pool liberi
-  - I blocchi sono di 3 tipi
-    - Occupati(verde)
-    - Mai allocati(celeste)
-    - Situazione ideale
-      - Verdi sotto/Celesti sopra
-  - I blocchi allocati possono essere inframezzati da blocchi __liberi(verdino)__
+  - Si va  a vedere se ci sono blocchi liberi nel pool
+
+  - I blocchi allocati possono essere inframezzati da blocchi liberi
     - Se ho solo blocchi occupati allocherò il primo blocco celeste
-    - Nella struttura che definisce il pool
-      - numero blocchi mai allocati
-      - puntatore di testa a una lista libera di blocchi liberi
+    - Nella struttura che definisce il pool trovo:
+      - Numero blocchi mai allocati
+      - Puntatore di testa a una lista libera di blocchi liberi
         - questa lista ha la precedenza rispetto ai blocchi azzuri quando viene richiesta l'allocazione
 - Se arriva una richiesta di disallocazione ad un blocco in un pool full
   - quello andrà a finire nella lista degli used pools
 
-> la classe di un pool viene determinata in base alla "prima" richiesta
+---
  
 ##### Vantaggi e svantaggi
 
 - Tutto molto veloce e efficente 
+- Limita il problema della frammentazione
 - Ma
   - Ci può essere un uso inefficente della memoria
     - Potrei avere pool di ogni classe ma con un blocco solo per ogni pool
@@ -328,7 +373,7 @@ Finché ci sono nodi nel Grey set:
 
 ### _Garbage Collection CPython_
 
-- Gli oggetti che fanno parte di cicli di riferimenti non possono essere disallocati
+- Con il solo approccio reference count gli oggetti che fanno parte di cicli di riferimenti non possono essere disallocati
 - CPython utilizza un algoritmo di _rilevamento dei cicli_
   - Costituisce propriamente il _Garbage collector di (C)Python_
   - Viene usato un algoritmo di tracing all'interno di un approccio generazionale
@@ -340,7 +385,7 @@ Finché ci sono nodi nel Grey set:
   - Oggetti non immutable
 - Gli oggetti container vengono mantenuti in una _double-linked-list L_
   - C'è piu di una L ma assummiamo che ce ne sia solo una
-  - Il GC(rilevamento dei cicli) viene attivato quando il numero di elementi nella lista supera una certa _soglia_
+- Il GC(rilevamento dei cicli) viene attivato quando il numero di elementi nella lista supera una certa _soglia_
 
 <br>
  
