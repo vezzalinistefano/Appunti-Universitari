@@ -11,10 +11,18 @@
   - [Protocolli su canale affidabile](#protocolli-su-canale-affidabile)
     - [Formalismo: FSM](#formalismo-fsm)
       - [Ipotesi](#ipotesi)
-  - [Trasfemrimento affidabile su canale con errori a livello bit](#trasfemrimento-affidabile-su-canale-con-errori-a-livello-bit)
+  - [Trasferimento affidabile su canale con errori a livello bit](#trasferimento-affidabile-su-canale-con-errori-a-livello-bit)
+      - [Trasferimento su un canale con errore nei bit (_rdt2.0_)](#trasferimento-su-un-canale-con-errore-nei-bit-rdt20)
     - [Problema](#problema)
       - [Protocollo rdt2.1: miglioramento di rdt2.0](#protocollo-rdt21-miglioramento-di-rdt20)
-  - [Protocolli](#protocolli)
+        - [Analisi del protocollo _rdt2.1_](#analisi-del-protocollo-rdt21)
+          - [Automa lato mittente](#automa-lato-mittente)
+          - [Automa lato destinatario](#automa-lato-destinatario)
+      - [Protocollo rdt2.2: possibile miglioramento del protocollo rdt2.1](#protocollo-rdt22-possibile-miglioramento-del-protocollo-rdt21)
+        - [Automa FSM per protocollo _rdt2.2- mittente_](#automa-fsm-per-protocollo-rdt22--mittente)
+        - [Automa FSM per protocollo _rdt2.2- destinatario_](#automa-fsm-per-protocollo-rdt22--destinatario)
+  - [Protocolli su canale con errori a livello di bit e perdita pacchetti](#protocolli-su-canale-con-errori-a-livello-di-bit-e-perdita-pacchetti)
+    - [Trasferimento affidabile su canale con errore sui bit e perdita pacchetti (_protocollo rdt3.0_)](#trasferimento-affidabile-su-canale-con-errore-sui-bit-e-perdita-pacchetti-protocollo-rdt30)
 - [Affidabilità del protocollo TCP](#affidabilità-del-protocollo-tcp)
   - [Meccanismi per affidabilità](#meccanismi-per-affidabilità)
   - [Come stimare il "time-out"](#come-stimare-il-time-out)
@@ -193,9 +201,9 @@ Destinatario
 
 ![](img/05_02/2.png)
 
-## Trasfemrimento affidabile su canale con errori a livello bit
+## Trasferimento affidabile su canale con errori a livello bit
 
-**2. Trasferimento su un canale con errore nei bit (_rdt2.0_)**
+#### Trasferimento su un canale con errore nei bit (_rdt2.0_)
 
 - Il canale trasmissivo può modificare il valore di un bit
 - Come recuperare l'errore?
@@ -209,7 +217,6 @@ Destinatario
 ### Problema
 
 - Se sono danneggiati i messaggi di ACK/NACK?
-
   - Il mittente non sa se il destinatario ha ricevuto o meno il pacchetto
   - _Prima soluzione_
     - Ritrasmettere il pacchetto
@@ -223,46 +230,90 @@ Destinatario
 
 #### Protocollo rdt2.1: miglioramento di rdt2.0
 
-- Aggiungo numero di sequenza ai pacchetti
+- Risolve i problemi del protocollo _rdt2.0_
+- Aggiungo **numero di sequenza** ai pacchetti
   - Se ricevo nuovamente un pacchetto già ricevuto capisco di avere un
     duplicato
-  - Se il pacchetto di ACK/NACK è danneggiato lo scarto
-- Nell'ipotesi di comunicazione STOP-AND-WAIT - Mi basa un bit come numero di sequenza - Se numero di seq è lo steesso il mittente ha rispedito un
-pacchetto
+  - il mittente ritrasmette il pacchetto se il messaggio di ACK/NAK è danneggiato (e quindi scartato)
+  - il destinatario scarta (nel senso che non consegna al livello superiore) i pacchetti duplicati 
+- Nell'ipotesi di comunicazione STOP-AND-WAIT 
+  - Mi basa un bit come numero di sequenza 
+    -  Se numero di seq è lo steesso il mittente ha rispedito un pacchetto
 
-<!-- Foto da slide 21 -->
+##### Analisi del protocollo _rdt2.1_
+
+- **Mittente**
+  - Aggiungo ad ogni pacchetto un numero di sequenza
+  - Due sequenze di numeri (0,1) sono abbastanza nel caso di ACK/NACK durante una trasmissioned i tipo STOP-AND-WAIT
+  - Verifica anche se ACK/NACK è danneggiato
+  - Serve il doppio degli stati rispetto a _rdt2.0_
+    - Lo stato corrente deve ricordarsi se il pacchetto corrente ha un numero di sequenza pari a 0 o a 1
+- **Destinatario**
+  - Deve controllare se il pacchetto ricevuto è duplicato (lo stato consente di verificare se il numero di sequenza del pacchetto è 0 o 1)
+  - Il destinatario può non sapere se il suo ultimo ACK/NAK è stato ricevuto correttamente dal mittente
+
+###### Automa lato mittente
+
+![](img/automa_fsm_2.1.png)
+
+###### Automa lato destinatario
+
+![](img/automa_fsm_2.1_dest.png)
+
+#### Protocollo rdt2.2: possibile miglioramento del protocollo rdt2.1
+
+> Nel protocollo rdt2.1, per ogni pacchetto ricevuto, il destinatario deve inviare 
+> sempre un pacchetto di ACK o NAK al mittente
 
 - Possibile miglioramento:
   - Mandare solo ACK positivi per l'ultimo pacchetto ricevuto
     correttamente
     - Includo nel ACK il numero di seq dell'ultimo pacchetto ricevuto
       correttamente
-      - DESTINATARIO
-      - MITTENTE
+      - **DESTINATARIO**
+        - Se il pacchetto i ricevuto è corretto (giusta sequenza,pacchetto integro), inviare un ACK con etichetta i
+        - Se il pacchetto i ricevuto non è corretto e il pacchetto i-1 era corretto, inviare un ACK con etichetta i-1 
+      - **MITTENTE**
+        - Se il mittente riceve due ACK per il pacchetto i-1, può dedurre che il destinatario non ha ricevuto correttamente il pacchetto i e quindi deve agire come se fosse un (NAK, i) 
+          - Quindi ritrasmettere il pacchetto i
 
-## Protocolli
+##### Automa FSM per protocollo _rdt2.2- mittente_
+
+![](img/automa_fsm_2.2.png)
+
+##### Automa FSM per protocollo _rdt2.2- destinatario_
+
+![](img/automa_fsm_2.2_dest.png)
+
+## Protocolli su canale con errori a livello di bit e perdita pacchetti
 
 - Il canale di trasmissione può causare errori sui bit e perdita di
   pacchetti (sia dati sia ACK)
+- Come realizziamo una trasmissione affidabile?
+  - Checksum
+  - Numeri di sequenza
+  - Ritrasmissioni
+- Sono tutte cose utili ma non sufficienti
+- _soluzione:_ coinvolgiamo il tempo
 
-**3.0) ...**
+### Trasferimento affidabile su canale con errore sui bit e perdita pacchetti (_protocollo rdt3.0_)
 
-- _Solzuione_: il mittente attende l'ACK per un intervallo di tempo
+- _Soluzione_: il mittente attende l'ACK per un intervallo di tempo
   "ragionevole" poi ritrasmette
 
   - Necessità
     1. Se il pacchetto è in ritardo ma non perso non devo ritrasmettere
-    2. ...
+    2. Usare un intervallo di tempo ragionevole
 
-  <!-- Img slide 32 -->
+![](img/automa_fsm_3.0.png)
 
-- Il meccanismo send ack è affidabile ma inefficiente
 
 # Affidabilità del protocollo TCP
 
 ## Meccanismi per affidabilità
 
 - Vogliamo rilevare se una comunicazione non sta andando a buon fine
+
 <br>
 
 1. __Acknowledgment positivo__
@@ -403,6 +454,7 @@ pacchetto
 
 ## TCP usa
 
+- No go-back-n no ritrasmissione selettiva
 - Approccio con ACK comulativi
   - Due sliding window
   - Se il destinatario riceve un byte fuori sequenza

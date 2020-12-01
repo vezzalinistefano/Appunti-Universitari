@@ -1,4 +1,26 @@
-# TCP
+# Protocollo TCP
+
+--- 
+
+- [Protocollo TCP](#protocollo-tcp)
+  - [1. Orientato alle connessioni](#1-orientato-alle-connessioni)
+  - [2. Trasmissione byte stream](#2-trasmissione-byte-stream)
+  - [3. Connessioni full duplex](#3-connessioni-full-duplex)
+  - [4. Affidabile](#4-affidabile)
+  - [5.a Trasmissione con buffer](#5a-trasmissione-con-buffer)
+  - [5.b Controllo di congestione e di flusso](#5b-controllo-di-congestione-e-di-flusso)
+  - [5.c Uso del buffer](#5c-uso-del-buffer)
+  - [Segmento TCP](#segmento-tcp)
+    - [Formato del segmento TCP](#formato-del-segmento-tcp)
+    - [Checksum TCP](#checksum-tcp)
+    - [Negoziazione del MSS](#negoziazione-del-mss)
+    - [Numeri di sequenza e acknowledgment](#numeri-di-sequenza-e-acknowledgment)
+  - [Instaurare e chiudere una connessione TCP](#instaurare-e-chiudere-una-connessione-tcp)
+    - [Instaurazione](#instaurazione)
+  - [Chiusura della connessione](#chiusura-della-connessione)
+  - [Chiusura brusca della connessione](#chiusura-brusca-della-connessione)
+
+---
 
 - TCP offre un livello di trasporto affidabile e orientato alla connessione
 - Serivizi in più rispetto ad UDP:
@@ -19,8 +41,8 @@
 
 ## 1. Orientato alle connessioni
 
-- Viene creata una connessione tra i due processi su host
-- Viene chiusa dopo il completamento del trasferimento
+- Viene creata una connessione tra i due processi su host prima del trasferimento di qualsiasi dato tra le applicazioni
+- Viene chiusa dopo il completamento del trasferimento dei dati
 - 3 fasi
   - Instaurazione
   - Utilizzo
