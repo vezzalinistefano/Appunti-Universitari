@@ -27,6 +27,13 @@
         - [Vantaggi e svantaggi](#vantaggi-e-svantaggi-1)
     - [_Garbage Collection CPython_](#garbage-collection-cpython)
       - [Rilevamento dei cicli](#rilevamento-dei-cicli)
+  - [_Generational Garbage Collection_](#generational-garbage-collection)
+    - [Esecuzione algoritmo](#esecuzione-algoritmo)
+    - [Vantaggi/Svantaggi](#vantaggisvantaggi)
+  - [Approccio generazionale in CPython](#approccio-generazionale-in-cpython)
+    - [Cicli di attivazione](#cicli-di-attivazione)
+    - [Le soglie](#le-soglie)
+    - [La old generation](#la-old-generation)
 
 # Gestione della memoria
 
@@ -403,3 +410,54 @@ Finché ci sono nodi nel Grey set:
   - se RC_L > 0 e X è già marcato (ovviamente come raggiungibile) passo all'oggetto successivo
 4. Quando l'algritmo termina gli oggetti che rimangono presumibilmente irraggiungibili sono effettivamente tali e possono essere disallocati
 ```
+
+## _Generational Garbage Collection_
+
+- Oggetti divisi in generazioni
+- Vengono considerate 3 o 4 generazioni
+- Idea euristica supportata da studi sperimentali
+  - Più un oggetto sta in memoria più è probabile che ci serva
+  - Molti oggetti che vengono creati muoiono subito
+    - e.g.: oggetti creati localmente
+
+### Esecuzione algoritmo
+
+- Il GC viene eseguito su una generazione
+  - Se è raggiungibile viene spostato in una generazione successiva
+    - Ovvero più anziana (a patto che ci sia)
+  - Altrimenti viene disallocato
+
+### Vantaggi/Svantaggi
+
+- Ogni ciclo può essere fatto su un numero minore di oggetti
+  - Quindi più veloce
+- A seconda delle soglie però può essere invocato più frequentemente
+- Minore precisione
+- Spesso vengono usati approcci ibridi
+  - Ogni tanto si fa una full-collection
+
+## Approccio generazionale in CPython
+
+- CPython usa di default 3 generazioni
+  - 0, 1, 2 (0 è la più giovane)
+- Gli oggetti di ogni generazione sono tenuti in una lista doppia
+  - Algoritmo eliminazione dei cicli è embedded in un approccio generazionale
+  - Ci stanno solo gli oggetti contenitori
+
+### Cicli di attivazione
+
+- La garbage collection su una generazione g > 0 viene fatta su tutte le generazioni i <= g
+- Quando inizia la gc su g vengono unite le liste relative alla generazione g e, eventualmente, a quelle più giovani
+- Una collection 
+
+### Le soglie
+
+- I valori default sono 700, 10, 10
+  - La soglia per la prima generazione (700) è un valore assoluto
+  - Le soglie per le generazioni successiva indicano invece il numero di attivazioni del GC sulla generazione precedente
+    - Il gc sulla generazione
+
+### La old generation
+
+- La generazione 2 esiste una condizione ulteriore
+  - Una full collection viene eseguita solo se più del 25% deglio oggetti sono stati allocati a partire dalla ultima full collection
