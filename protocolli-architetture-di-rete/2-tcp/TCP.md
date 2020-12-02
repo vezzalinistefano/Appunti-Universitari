@@ -12,6 +12,9 @@
   - [5.c Uso del buffer](#5c-uso-del-buffer)
   - [Segmento TCP](#segmento-tcp)
     - [Formato del segmento TCP](#formato-del-segmento-tcp)
+  - [<img src="img/seg_TCP1.png" width="600">](#)
+  - [<img src="img/seg_TCP2.png" width="600">](#-1)
+  - [<img src="img/seg_TCP3.png" width="600">](#-2)
     - [Checksum TCP](#checksum-tcp)
     - [Negoziazione del MSS](#negoziazione-del-mss)
     - [Numeri di sequenza e acknowledgment](#numeri-di-sequenza-e-acknowledgment)
@@ -24,7 +27,14 @@
 
 - TCP offre un livello di trasporto affidabile e orientato alla connessione
 - Serivizi in più rispetto ad UDP:
-  - ...
+  - orientato alla connessione
+    - Instaurazione, utilizzo e chiusura della connessione
+  - orientato al flusso di dati
+    - Considera flusso dati da host fino al destinatario
+  - trasferimento con buffer
+    - Dati memorizzati in un buffer e poi inseriti in un pacchetto quando buffer è pieno
+  - connessione full duplex
+    - Quando la connessione viene instaurata è possibile il trasferimento contemporaneo in entrambe le direzioni
 - Cosa non garantisce TCP
   - Comunicazioni in tempo reale
   - Garanzia di disponibilità di banda tra mittente e destinatario
@@ -47,17 +57,20 @@
   - Instaurazione
   - Utilizzo
   - Chiusura
-- Processo avvisato nel momento in cui
+- Processo applicativo viene avvisato nel momento in cui
   - Non si riesce a stabilire la connessione
   - La connessione viene interrotta bruscamente
 
 ## 2. Trasmissione byte stream
 
-- Connessione trattata come un flusso di byte
+- Connessione trattata come un flusso di byte continua da mittente a destinatario
 
 > unità di trasmissione è il byte
 
-1.
+1. Mittente scrive byte
+2. Il livello tcp per inviarli accorpa i byte in un _segmento tcp_
+3. Il livello IP incapsula ogni segmento TCP in un datagram IP
+4. Il destinatario legge byte
 
 ## 3. Connessioni full duplex
 
@@ -65,16 +78,24 @@
   una stessa sessione
   - Ai processi questi trasferimenti appaiono come due data stream non
     correllati
-
-<!-- Guarda jamboard 23-11-2020 -->
-
+- Le ultime versioni del TCP consentono di sovrapporre comunicazioni di dati e di controllo
+  - Invio di informazioni di controllo (es.: ACK) insieme ai dati utente
+  - viene detto **PIGGYBANKING**
+    - _Io ricevo un pacchetto, devo rispondere con un ack ma anche mandare dei dati a mia volta quindi mando dati e ack_
+     
 ## 4. Affidabile
 
-- Trasferimento oridnato di stream di dati
+- Trasferimento ordinato di stream di dati
+  - ACK + time-out + (ritrasmissione)
+- Ogni trasmissione andata a buon fine viene notificata dal ricevente
+  - ACK!
+- Se mittente non riceve ack entro un _time-out_ il mittente ritrasmette i dati
+- Acknowledgment e ritrasmissioni dovute ad eventuali perdite sono gestite in modo trasparente rispetto al processo applicativo
 
 ## 5.a Trasmissione con buffer
 
 - Il layer TCP deve usare necessariamente un buffer
+  - (ricorda i problemi dei vari rdt...)
 - Buffer consente di ovviare a:
   - Asincronia
   - Tempi di trasmissione differenti
@@ -83,24 +104,43 @@
 
 ## 5.b Controllo di congestione e di flusso
 
+- Il livello TCP è responsabile della gestione del buffering dei dati e di determinare quando è tempo di inviare un certo insieme di dati
 - _Congestion control_
   - mittente deve diminuire tasso di trasmissione dei pachetti quando la
   connessione è già congestionata
+- _Flow control_ 
+  - L'host mittente non deve sovraccaricare il destinatario
 
 ## 5.c Uso del buffer
 
-<!-- rivedere lezioni -->
-
+1. Dati applicazione messi in un buffer e poi inseriti in un segmento tcp quando il segmento è pieno
+  - MSS: Maximum segment size
+    - Viene concordato o di default dipende dall'implementazione TCP
+2. Il segmento, a livello logico, viene poi inserito nel buffer del destinatario 
+   - in realtà, viene incapsulato in un datagram IP, spedito via rete e dopo aver attraversato i vari livelli, arriva nel buffer TCP di destinazione
+    
 ## Segmento TCP
 
 ### Formato del segmento TCP
-    <!-- Foto slide 20 -->
 
-- sequence number (32 bit) relativo al flusso di byte che sta trasmettendo
-  - Posso mandare anche stream abbastanza
-- acknowledgment number
+- Ovvero l'insieme di dati che il livello TCP chiede di trasferire al livello IP
+- Ogni seg contiene
+  - _**Payload**_: dati del byte stream
+  - _**Header**_: informazioni di controllo per identificare i byte dati
+
+<img src="img/seg_TCP1.png" width="600">
+---
+<img src="img/seg_TCP2.png" width="600">
+---
+<img src="img/seg_TCP3.png" width="600">
+---
 
 ### Checksum TCP
+
+- Usato per rilevare errori nei dati trasportati
+- calcolato usando un maggior numero di informazioni di quelle presenti nell’header TCP (vi sono anche informazioni IP)
+ 
+<img src="img/checksumtcp.PNG" width="600">
 
 ### Negoziazione del MSS
 
